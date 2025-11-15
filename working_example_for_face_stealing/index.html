@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Face Mesh</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #000;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x222222);
+        document.body.appendChild(renderer.domElement);
+
+        // Check if files exist first
+        async function checkFiles() {
+            const files = ['mesh_data.json', 'texture.jpg'];
+            const missing = [];
+            
+            for (const file of files) {
+                try {
+                    const response = await fetch(file, { method: 'HEAD' });
+                    if (!response.ok) {
+                        missing.push(file);
+                    }
+                } catch {
+                    missing.push(file);
+                }
+            }
+            
+            if (missing.length > 0) {
+                throw new Error(`Missing files: ${missing.join(', ')}`);
+            }
+        }
+
+        // Load mesh data and texture
+        checkFiles().then(() => {
+            return Promise.all([
+                fetch('mesh_data.json').then(r => {
+                    if (!r.ok) throw new Error(`Failed to load mesh_data.json: ${r.statusText}`);
+                    return r.json();
+                }),
+                new Promise((resolve, reject) => {
+                    const loader = new THREE.TextureLoader();
+                    loader.load(
+                        'texture.jpg',
+                        resolve,
+                        undefined,
+                        (err) => reject(new Error(`Failed to load texture.jpg: ${err}`))
+                    );
+                })
+            ]);
+        }).then(([data, texture]) => {
+            console.log('Loaded mesh data:', data.vertices.length, 'vertices');
+            console.log('Loaded texture:', texture);
+
+            // Create geometry
+            const geometry = new THREE.BufferGeometry();
+
+            // Vertices
+            const vertices = new Float32Array(data.vertices.flat());
+            geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+
+            // UVs
+            const uvs = new Float32Array(data.uvs.flat());
+            geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+
+            // Indices
+            const indices = new Uint16Array(data.indices.flat());
+            geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+
+            // Compute normals for lighting
+            geometry.computeVertexNormals();
+
+            // Material with texture
+            const material = new THREE.MeshStandardMaterial({
+                map: texture,
+                side: THREE.DoubleSide
+            });
+
+            // Create mesh
+            const mesh = new THREE.Mesh(geometry, material);
+            scene.add(mesh);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(1, 1, 1);
+            scene.add(directionalLight);
+
+            // Camera position
+            camera.position.set(0, 0, 2);
+            camera.lookAt(0, 0, 0);
+
+            // Controls (mouse rotation)
+            let isDragging = false;
+            let previousMousePosition = { x: 0, y: 0 };
+
+            renderer.domElement.addEventListener('mousedown', (e) => {
+                isDragging = true;
+            });
+
+            renderer.domElement.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+
+                const deltaX = e.clientX - previousMousePosition.x;
+                const deltaY = e.clientY - previousMousePosition.y;
+
+                mesh.rotation.y += deltaX * 0.01;
+                mesh.rotation.x += deltaY * 0.01;
+            });
+
+            renderer.domElement.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+
+            renderer.domElement.addEventListener('mouseleave', () => {
+                isDragging = false;
+            });
+
+            renderer.domElement.addEventListener('mousedown', (e) => {
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+
+            // Animation loop
+            function animate() {
+                requestAnimationFrame(animate);
+                renderer.render(scene, camera);
+            }
+            animate();
+
+            // Handle window resize
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            console.log('✓ 3D Face Mesh loaded and rendered');
+        }).catch(err => {
+            console.error('Error loading mesh:', err);
+            const errorMsg = err.message || 'Unknown error';
+            document.body.innerHTML = `
+                <div style="color: white; padding: 40px; font-family: monospace; max-width: 600px; margin: 50px auto;">
+                    <h2 style="color: #ff6b6b;">⚠️ Files Not Found</h2>
+                    <p style="color: #ccc; line-height: 1.6;">
+                        ${errorMsg}
+                    </p>
+                    <div style="background: #333; padding: 20px; margin-top: 20px; border-radius: 5px;">
+                        <p style="margin: 0 0 10px 0; color: #fff;"><strong>To fix this:</strong></p>
+                        <ol style="color: #ccc; margin: 0; padding-left: 20px;">
+                            <li>Run: <code style="background: #222; padding: 2px 6px; border-radius: 3px;">python capture_and_export.py</code></li>
+                            <li>Press <strong>SPACE</strong> when your face is detected</li>
+                            <li>Refresh this page</li>
+                        </ol>
+                    </div>
+                </div>
+            `;
+        });
+    </script>
+</body>
+</html>
+
