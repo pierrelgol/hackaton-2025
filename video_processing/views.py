@@ -4,8 +4,11 @@ from rest_framework import status
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 import os
+import logging
 from django.conf import settings
 from media_separation.views import separate_media_file
+
+logger = logging.getLogger('video_processing')
 
 
 @api_view(['GET', 'POST'])
