@@ -5,6 +5,7 @@ from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 import os
 from django.conf import settings
+from media_separation.views import separate_media_file
 
 
 @api_view(['GET', 'POST'])
@@ -12,6 +13,7 @@ def video_endpoint(request):
     """
     Video processing endpoint.
     Handle video data from frontend camera/microphone.
+    Automatically separates audio and video after saving.
     """
     if request.method == 'GET':
         return Response({'message': 'Video processing endpoint'}, status=status.HTTP_200_OK)
@@ -31,7 +33,6 @@ def video_endpoint(request):
     content_type = video_file.content_type
     
     # Save the video file to media directory
-    # You can process it here or save for later processing
     file_path = default_storage.save(
         f'raw/{file_name}',
         ContentFile(video_file.read())
@@ -40,14 +41,32 @@ def video_endpoint(request):
     # Get the full path
     full_path = os.path.join(settings.MEDIA_ROOT, file_path)
     
-    # Add your video processing logic here
-    # For example: extract frames, analyze video, etc.
+    # Automatically separate audio and video
+    separation_result = separate_media_file(file_name)
     
+    if not separation_result['success']:
+        # File was saved but separation failed
+        return Response({
+            'message': 'Video received and saved, but separation failed',
+            'file_name': file_name,
+            'file_size': file_size,
+            'content_type': content_type,
+            'saved_path': file_path,
+            'full_path': full_path,
+            'separation_error': separation_result['error']
+        }, status=status.HTTP_200_OK)
+    
+    # Success - return info about saved file and separated files
     return Response({
-        'message': 'Video received and saved',
+        'message': 'Video received, saved, and separated successfully',
         'file_name': file_name,
         'file_size': file_size,
         'content_type': content_type,
         'saved_path': file_path,
         'full_path': full_path,
+        'separated': {
+            'file_hash': separation_result['file_hash'],
+            'video': separation_result['video'],
+            'audio': separation_result['audio']
+        }
     }, status=status.HTTP_200_OK)

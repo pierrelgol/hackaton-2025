@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'audio_processing',
     'video_processing',
+    'media_separation',
 ]
 
 MIDDLEWARE = [

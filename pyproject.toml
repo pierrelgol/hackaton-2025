@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Hackathon 2025 webapp backend"
 authors = ["Your Name <you@example.com>"]
 readme = "README.md"
-packages = [{include = "config"}, {include = "audio_processing"}, {include = "video_processing"}]
+packages = [{include = "config"}, {include = "audio_processing"}, {include = "video_processing"}, {include = "media_separation"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"

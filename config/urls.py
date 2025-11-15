@@ -12,6 +12,7 @@ urlpatterns = [
     path('', TemplateView.as_view(template_name='index.html'), name='home'),
     path('api/audio/', include('audio_processing.urls')),
     path('api/video/', include('video_processing.urls')),
+    path('api/media/', include('media_separation.urls')),
 ]
 
 if settings.DEBUG:
