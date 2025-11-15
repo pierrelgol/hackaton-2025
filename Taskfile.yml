@@ -1,0 +1,88 @@
+version: '3'
+
+vars:
+  PYTHON: python
+  MANAGE: python manage.py
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  install:
+    desc: Install dependencies using Poetry
+    cmds:
+      - poetry install
+
+  shell:
+    desc: Activate Poetry shell
+    cmds:
+      - poetry shell
+
+  migrate:
+    desc: Run database migrations
+    cmds:
+      - poetry run {{.MANAGE}} migrate
+
+  makemigrations:
+    desc: Create database migrations
+    cmds:
+      - poetry run {{.MANAGE}} makemigrations
+
+  migrate-create:
+    desc: Create and run migrations
+    cmds:
+      - task: makemigrations
+      - task: migrate
+
+  runserver:
+    desc: Run Django development server
+    cmds:
+      - poetry run {{.MANAGE}} runserver
+
+  createsuperuser:
+    desc: Create Django superuser
+    cmds:
+      - poetry run {{.MANAGE}} createsuperuser
+
+  collectstatic:
+    desc: Collect static files
+    cmds:
+      - poetry run {{.MANAGE}} collectstatic --noinput
+
+  test:
+    desc: Run tests
+    cmds:
+      - poetry run {{.MANAGE}} test
+
+  lint:
+    desc: Run linting (placeholder)
+    cmds:
+      - echo "Add your linting command here"
+
+  format:
+    desc: Run code formatting (placeholder)
+    cmds:
+      - echo "Add your formatting command here"
+
+  clean:
+    desc: Clean Python cache files
+    cmds:
+      - poetry run find . -type d -name __pycache__ -exec rm -r {} +
+      - poetry run find . -type f -name "*.pyc" -delete
+      - poetry run find . -type f -name "*.pyo" -delete
+
+  reset-db:
+    desc: Reset database (delete and recreate)
+    cmds:
+      - rm -f db.sqlite3
+      - task: migrate
+      - echo "Database reset complete"
+
+  setup:
+    desc: Initial project setup
+    cmds:
+      - task: install
+      - task: migrate
+      - echo "Setup complete! Run 'task runserver' to start the development server"

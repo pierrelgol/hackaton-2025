@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "hackaton-2025"
+version = "0.1.0"
+description = "Hackathon 2025 webapp backend"
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+packages = [{include = "config"}, {include = "audio_processing"}, {include = "video_processing"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+Django = "^4.2.0"
+djangorestframework = "^3.14.0"
+django-cors-headers = "^4.0.0"
+Pillow = "^10.0.0"
+
+[tool.poetry.group.dev.dependencies]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
