@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raccoon Mask - Real-time Face Tracking</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: monospace;
+        }
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        #video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1); /* Mirror for natural feel */
+        }
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+        #adjustments {
+            position: absolute;
+            top: 50px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 11px;
+            max-width: 200px;
+            display: none;
+            z-index: 100;
+        }
+        #adjustments.show {
+            display: block;
+        }
+        #adjustments label {
+            display: block;
+            margin: 8px 0 3px 0;
+            font-weight: bold;
+        }
+        #adjustments input[type="range"] {
+            width: 100%;
+            margin: 5px 0;
+        }
+        #adjustments .value {
+            display: inline-block;
+            min-width: 50px;
+            text-align: right;
+        }
+        .toggle-btn, .button {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+        .toggle-btn:hover, .button:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        .toggle-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas"></canvas>
+        <div id="info">Loading...</div>
+        <button class="toggle-btn" onclick="toggleAdjustments()">⚙️ Adjust</button>
+        <div id="adjustments">
+            <h3 style="margin: 0 0 10px 0;">Mask Alignment</h3>
+            <label>Horizontal (X): <span class="value" id="valX">0.00</span></label>
+            <input type="range" id="offsetX" min="-0.2" max="0.2" step="0.01" value="0.0" oninput="updateAlignment('offsetX', this.value)">
+            
+            <label>Vertical (Y): <span class="value" id="valY">0.00</span></label>
+            <input type="range" id="offsetY" min="-0.2" max="0.2" step="0.01" value="0.0" oninput="updateAlignment('offsetY', this.value)">
+            
+            <label>Depth (Z): <span class="value" id="valZ">0.00</span></label>
+            <input type="range" id="offsetZ" min="-0.2" max="0.2" step="0.01" value="0.0" oninput="updateAlignment('offsetZ', this.value)">
+            
+            <label>Size: <span class="value" id="valScale">1.50</span></label>
+            <input type="range" id="scaleMult" min="0.5" max="5.0" step="0.1" value="1.5" oninput="updateAlignment('scaleMultiplier', this.value)">
+            
+            <button class="button" onclick="resetAlignment()" style="margin-top: 10px; width: 100%;">Reset</button>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+    <script src="main_simple.js"></script>
+</body>
+</html>
+

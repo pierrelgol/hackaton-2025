@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Raccoon Mask Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        #canvas {
+            display: block;
+        }
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            font-size: 14px;
+            max-width: 300px;
+            z-index: 100;
+        }
+        #controls h2 {
+            margin: 0 0 15px 0;
+            font-size: 18px;
+        }
+        #controls p {
+            margin: 8px 0;
+            line-height: 1.6;
+        }
+        #info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 12px;
+        }
+        .button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .button:hover {
+            background: #45a049;
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <canvas id="canvas"></canvas>
+        <div id="loading">Loading 3D mask...</div>
+        <div id="controls" style="display: none;">
+            <h2>🎭 3D Raccoon Mask Viewer</h2>
+            <p><strong>Controls:</strong></p>
+            <p>• <strong>Left Click + Drag:</strong> Rotate</p>
+            <p>• <strong>Scroll:</strong> Zoom</p>
+            <p>• <strong>Double Click:</strong> Reset view</p>
+            <button class="button" onclick="resetView()">Reset View</button>
+            <button class="button" onclick="toggleWireframe()">Toggle Wireframe</button>
+            <button class="button" onclick="toggleAxes()">Toggle Axes</button>
+        </div>
+        <div id="info" style="display: none;">
+            <div id="stats"></div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script>
+        let scene, camera, renderer;
+        let maskMesh;
+        let wireframe = false;
+        let showAxes = false;
+        let axesHelper;
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        let cameraDistance = 2;
+
+        // Initialize Three.js
+        function init() {
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a2e);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(
+                75,
+                window.innerWidth / window.innerHeight,
+                0.1,
+                1000
+            );
+            updateCameraPosition();
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({
+                canvas: document.getElementById('canvas'),
+                antialias: true
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+
+            // Mouse controls
+            setupControls();
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight1.position.set(2, 2, 2);
+            directionalLight1.castShadow = true;
+            scene.add(directionalLight1);
+
+            const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.4);
+            directionalLight2.position.set(-2, -1, -1);
+            scene.add(directionalLight2);
+
+            // Grid helper
+            const gridHelper = new THREE.GridHelper(2, 20, 0x444444, 0x222222);
+            scene.add(gridHelper);
+
+            // Axes helper
+            axesHelper = new THREE.AxesHelper(1);
+            scene.add(axesHelper);
+
+            // Load mask
+            loadMask();
+        }
+
+        // Setup mouse controls
+        function setupControls() {
+            let cameraAngleX = Math.PI / 4; // 45 degrees
+            let cameraAngleY = Math.PI / 4;
+
+            renderer.domElement.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+
+            renderer.domElement.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                
+                const deltaX = e.clientX - previousMousePosition.x;
+                const deltaY = e.clientY - previousMousePosition.y;
+                
+                cameraAngleY -= deltaX * 0.01;
+                cameraAngleX += deltaY * 0.01;
+                cameraAngleX = Math.max(0.1, Math.min(Math.PI - 0.1, cameraAngleX));
+                
+                updateCameraPosition(cameraAngleX, cameraAngleY);
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+
+            renderer.domElement.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+
+            renderer.domElement.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                cameraDistance *= e.deltaY > 0 ? 1.1 : 0.9;
+                cameraDistance = Math.max(0.5, Math.min(5, cameraDistance));
+                updateCameraPosition(cameraAngleX, cameraAngleY);
+            });
+
+            renderer.domElement.addEventListener('dblclick', resetView);
+        }
+
+        function updateCameraPosition(angleX = Math.PI / 4, angleY = Math.PI / 4) {
+            camera.position.x = cameraDistance * Math.sin(angleX) * Math.cos(angleY);
+            camera.position.y = cameraDistance * Math.cos(angleX);
+            camera.position.z = cameraDistance * Math.sin(angleX) * Math.sin(angleY);
+            camera.lookAt(0, 0, 0);
+        }
+
+        // Load raccoon mask
+        async function loadMask() {
+            try {
+                // Load mesh
+                const meshResponse = await fetch('raccoon_mask_mesh.json');
+                const meshData = await meshResponse.json();
+
+                // Load texture (prefer transparent version)
+                const textureLoader = new THREE.TextureLoader();
+                const texturePaths = [
+                    'raccoon_transparent.png',  // Prefer transparent
+                    'raccoon.png', 
+                    'racoon.png'
+                ];
+                let texture = null;
+
+                for (const path of texturePaths) {
+                    try {
+                        texture = await textureLoader.load(path);
+                        texture.flipY = false;
+                        console.log(`Loaded texture from: ${path}`);
+                        break;
+                    } catch (e) {
+                        // Try next
+                    }
+                }
+
+                if (!texture) {
+                    throw new Error('Could not load texture');
+                }
+
+                // Create geometry
+                const geometry = new THREE.BufferGeometry();
+                const vertices = new Float32Array(meshData.vertices.flat());
+                const uvs = new Float32Array(meshData.uv.flat());
+                const indices = new Uint16Array(meshData.faces.flat());
+
+                geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+                geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+                geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+                geometry.computeVertexNormals();
+
+                // Center geometry
+                geometry.computeBoundingBox();
+                const center = new THREE.Vector3();
+                geometry.boundingBox.getCenter(center);
+                geometry.translate(-center.x, -center.y, -center.z);
+
+                // Material with transparency support
+                const material = new THREE.MeshStandardMaterial({
+                    map: texture,
+                    side: THREE.DoubleSide,
+                    roughness: 0.4,
+                    metalness: 0.1,
+                    transparent: true,
+                    alphaTest: 0.1,  // Remove white background
+                    depthWrite: false
+                });
+
+                // Create mesh
+                maskMesh = new THREE.Mesh(geometry, material);
+                maskMesh.castShadow = true;
+                maskMesh.receiveShadow = true;
+                scene.add(maskMesh);
+
+                // Update camera to fit mesh
+                geometry.computeBoundingBox();
+                const size = geometry.boundingBox.getSize(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z);
+                cameraDistance = maxDim * 1.5;
+                updateCameraPosition();
+
+                // Update stats
+                document.getElementById('stats').innerHTML = `
+                    <strong>Mesh Stats:</strong><br>
+                    Vertices: ${meshData.vertices.length}<br>
+                    Faces: ${meshData.faces.length}<br>
+                    Size: ${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)}<br>
+                    <br>
+                    <strong>3D Shape:</strong><br>
+                    This shows the raccoon mask with depth deformation applied.
+                `;
+
+                // Hide loading, show controls
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('controls').style.display = 'block';
+                document.getElementById('info').style.display = 'block';
+
+                console.log('✓ Mask loaded successfully');
+                animate();
+            } catch (error) {
+                console.error('Error loading mask:', error);
+                document.getElementById('loading').textContent = 'Error loading mask. Check console.';
+            }
+        }
+
+        // Reset view
+        function resetView() {
+            if (!maskMesh) return;
+            
+            maskMesh.geometry.computeBoundingBox();
+            const size = maskMesh.geometry.boundingBox.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z);
+            
+            cameraDistance = maxDim * 1.5;
+            updateCameraPosition();
+        }
+
+        // Toggle wireframe
+        function toggleWireframe() {
+            if (!maskMesh) return;
+            wireframe = !wireframe;
+            maskMesh.material.wireframe = wireframe;
+        }
+
+        // Toggle axes
+        function toggleAxes() {
+            showAxes = !showAxes;
+            axesHelper.visible = showAxes;
+        }
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+
+        // Handle resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Start
+        init();
+    </script>
+</body>
+</html>
