@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hackathon 2025 - Video/Audio Capture</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 900px;
+            width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 640px;
+            margin: 0 auto 20px;
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        video {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-record {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-record.recording {
+            background: #f44336;
+        }
+
+        .status {
+            text-align: center;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-weight: 500;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .recording-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            background: #f44336;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎥 Video & Audio Recording</h1>
+        
+        <div class="video-container">
+            <video id="videoPreview" autoplay muted playsinline></video>
+        </div>
+
+        <div class="controls">
+            <button id="btnRecord" class="btn-record">Start Recording</button>
+        </div>
+
+        <div id="status" class="status hidden"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000/api';
+        
+        let mediaStream = null;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let isRecording = false;
+
+        const videoPreview = document.getElementById('videoPreview');
+        const btnRecord = document.getElementById('btnRecord');
+        const statusDiv = document.getElementById('status');
+
+        // Show status message
+        function showStatus(message, type = 'info') {
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+            statusDiv.classList.remove('hidden');
+        }
+
+        // Start recording (camera + microphone)
+        async function startRecording() {
+            try {
+                // Request camera and microphone access
+                const constraints = {
+                    video: {
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        facingMode: 'user'
+                    },
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        sampleRate: 44100
+                    }
+                };
+
+                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                videoPreview.srcObject = mediaStream;
+                
+                // Create MediaRecorder with both video and audio
+                mediaRecorder = new MediaRecorder(mediaStream, {
+                    mimeType: 'video/webm;codecs=vp8,opus',
+                    videoBitsPerSecond: 2500000
+                });
+
+                recordedChunks = [];
+                isRecording = true;
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        recordedChunks.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = async () => {
+                    isRecording = false;
+                    const videoBlob = new Blob(recordedChunks, { type: 'video/webm' });
+                    await uploadRecording(videoBlob);
+                };
+
+                // Start recording
+                mediaRecorder.start();
+                
+                // Update UI
+                btnRecord.textContent = 'Stop Recording';
+                btnRecord.classList.add('recording');
+                showStatus('Recording...', 'info');
+                
+            } catch (error) {
+                console.error('Error starting recording:', error);
+                showStatus(`Error: ${error.message}`, 'error');
+                isRecording = false;
+            }
+        }
+
+        // Stop recording
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                // Stop all tracks
+                if (mediaStream) {
+                    mediaStream.getTracks().forEach(track => track.stop());
+                }
+            }
+        }
+
+        // Upload recording to backend
+        async function uploadRecording(videoBlob) {
+            try {
+                showStatus('Uploading recording to server...', 'info');
+                
+                const formData = new FormData();
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                formData.append('video', videoBlob, `recording-${timestamp}.webm`);
+
+                const response = await fetch(`${API_BASE_URL}/video/`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                showStatus(`Recording uploaded successfully! File: ${result.file_name}`, 'success');
+                
+                // Reset UI
+                btnRecord.textContent = 'Start Recording';
+                btnRecord.classList.remove('recording');
+                videoPreview.srcObject = null;
+                mediaStream = null;
+                
+            } catch (error) {
+                console.error('Error uploading recording:', error);
+                showStatus(`Error uploading recording: ${error.message}`, 'error');
+                
+                // Reset UI even on error
+                btnRecord.textContent = 'Start Recording';
+                btnRecord.classList.remove('recording');
+                if (mediaStream) {
+                    mediaStream.getTracks().forEach(track => track.stop());
+                    videoPreview.srcObject = null;
+                    mediaStream = null;
+                }
+            }
+        }
+
+        // Toggle recording
+        btnRecord.addEventListener('click', () => {
+            if (!isRecording) {
+                startRecording();
+            } else {
+                stopRecording();
+            }
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+            }
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+            }
+        });
+    </script>
+</body>
+</html>
